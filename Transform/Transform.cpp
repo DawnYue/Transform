@@ -1,5 +1,10 @@
 ﻿#include <opencv2/opencv.hpp>  
 #include <iostream>
+#include<cassert>
+#include<opencv2/core/matx.hpp>
+#include<vector>
+
+
 using namespace cv;
 using namespace std;
 
@@ -63,3 +68,222 @@ int main()
 	return 0;
 }
 
+//最近邻域插值
+//根据目标图像的像素点（浮点坐标）找到原始图像中的4个像素点，取距离该像素点最近的一个原始像素值作为该点的值。
+
+
+namespace mycv {
+	void nearestIntertoplation(cv::Mat& src, cv::Mat& dst, const int rows, const int cols);
+}//mycv
+
+double distance(const double x1, const double y1, const double x2, const double y2);//两点之间距离，这里用欧式距离
+
+void mycv::nearestIntertoplation(cv::Mat& src, cv::Mat& dst, const int rows, const int cols)
+{
+	//比例尺
+	const double scale_row = static_cast<double>(src.rows) / rows;
+	const double scale_col = static_cast<double>(src.rows) / cols;
+
+	//扩展src到dst
+	dst = cv::Mat(rows, cols, src.type());
+	assert(src.channels() == 1 && dst.channels() == 1);
+
+	for (int i = 0; i < rows; ++i)//dst的行
+		for (int j = 0; j < cols; ++j)//dst的列
+		{
+			//求插值的四个点
+			double y = (i + 0.5) * scale_row + 0.5;
+			double x = (j + 0.5) * scale_col + 0.5;
+			int x1 = static_cast<int>(x);//col对应x
+			if (x1 >= (src.cols - 2)) x1 = src.cols - 2;//防止越界
+			int x2 = x1 + 1;
+			int y1 = static_cast<int>(y);//row对应y
+			if (y1 >= (src.rows - 2))  y1 = src.rows - 2;
+			int y2 = y1 + 1;
+			//根据目标图像的像素点（浮点坐标）找到原始图像中的4个像素点，取距离该像素点最近的一个原始像素值作为该点的值。
+			assert(0 < x2 && x2 < src.cols && 0 < y2 &&  y2 < src.rows);
+			std::vector<double> dist(4);
+			dist[0] = distance(x, y, x1, y1);
+			dist[1] = distance(x, y, x2, y1);
+			dist[2] = distance(x, y, x1, y2);
+			dist[3] = distance(x, y, x2, y2);
+
+			int min_val = dist[0];
+			int min_index = 0;
+			for (int i = 1; i < dist.size(); ++i)
+				if (min_val > dist[i])
+				{
+					min_val = dist[i];
+					min_index = i;
+				}
+
+			switch (min_index)
+			{
+			case 0:
+				dst.at<uchar>(i, j) = src.at<uchar>(y1, x1);
+				break;
+			case 1:
+				dst.at<uchar>(i, j) = src.at<uchar>(y1, x2);
+				break;
+			case 2:
+				dst.at<uchar>(i, j) = src.at<uchar>(y2, x1);
+				break;
+			case 3:
+				dst.at<uchar>(i, j) = src.at<uchar>(y2, x2);
+				break;
+			default:
+				assert(false);
+			}
+		}
+}
+
+double distance(const double x1, const double y1, const double x2, const double y2)//两点之间距离，这里用欧式距离
+{
+	return (x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2);//只需比较大小，返回距离平方即可
+}
+
+
+//线性内插（双线性插值)
+
+
+namespace mycv {
+	void bilinearIntertpolatioin(cv::Mat& src, cv::Mat& dst, const int rows, const int cols);
+}//mycv
+
+
+void mycv::bilinearIntertpolatioin(cv::Mat& src, cv::Mat& dst, const int rows, const int cols)
+{
+	//比例尺
+	const double scale_row = static_cast<double>(src.rows) / rows;
+	const double scale_col = static_cast<double>(src.rows) / cols;
+
+	//扩展src到dst
+	dst = cv::Mat(rows, cols, src.type());
+	assert(src.channels() == 1 && dst.channels() == 1);
+
+	for (int i = 0; i < rows; ++i)//dst的行
+		for (int j = 0; j < cols; ++j)//dst的列
+		{
+			//求插值的四个点
+			double y = (i + 0.5) * scale_row + 0.5;
+			double x = (j + 0.5) * scale_col + 0.5;
+			int x1 = static_cast<int>(x);//col对应x
+			if (x1 >= (src.cols - 2)) x1 = src.cols - 2;//防止越界
+			int x2 = x1 + 1;
+			int y1 = static_cast<int>(y);//row对应y
+			if (y1 >= (src.rows - 2))  y1 = src.rows - 2;
+			int y2 = y1 + 1;
+
+			assert(0 < x2 && x2 < src.cols && 0 < y2 &&  y2 < src.rows);
+			//插值公式,参考维基百科矩阵相乘的公式https://zh.wikipedia.org/wiki/%E5%8F%8C%E7%BA%BF%E6%80%A7%E6%8F%92%E5%80%BC
+
+			cv::Matx12d matx = { x2 - x, x - x1 };
+			cv::Matx22d matf = { static_cast<double>(src.at<uchar>(y1, x1)), static_cast<double>(src.at<uchar>(y2, x1)),
+								 static_cast<double>(src.at<uchar>(y1, x2)), static_cast<double>(src.at<uchar>(y2, x2)) };
+			cv::Matx21d maty = {
+				y2 - y,
+				y - y1
+			};
+
+			auto  val = (matx * matf * maty);
+			dst.at<uchar>(i, j) = val(0, 0);
+		}
+
+}
+
+
+//双三次插值
+namespace mycv {
+	void bicubicInsterpolation(cv::Mat& src, cv::Mat& dst, const int rows, const int cols);
+	std::vector<double> getW(double coor, double a = -0.5);//a默认-0.5
+}//mycv
+
+
+
+void mycv::bicubicInsterpolation(cv::Mat& src, cv::Mat& dst, const int rows, const int cols)
+{
+	dst = cv::Mat(rows, cols, src.type(), cv::Scalar::all(0));//初始化dst
+	//比例尺
+	double row_scale = static_cast<double>(src.rows) / rows;
+	double col_scale = static_cast<double>(src.cols) / cols;
+
+	switch (src.channels())
+	{
+
+	case 1://灰度
+		for (int i = 2; i < dst.rows - 2; ++i)
+			for (int j = 2; j < dst.cols - 2; ++j)
+			{
+				//计算系数w
+				double r = static_cast<double>(i *  row_scale);
+				double c = static_cast<double>(j *  col_scale);
+
+				//防止越界
+				if (r < 1.0) r += 1.0;
+				if (c < 1.0) c += 1.0;
+
+
+				std::vector<double> wr = mycv::getW(r);
+				std::vector<double> wc = mycv::getW(c);
+
+				//最后计算插值得到的灰度值
+				double val = 0;
+				int cc = static_cast<int>(c);
+				int rr = static_cast<int>(r);
+				//防止越界
+				if (cc > src.cols - 3)
+				{
+					cc = src.cols - 3;
+
+				}
+				if (rr > src.rows - 3) rr = src.rows - 3;
+
+				assert(0 <= (rr - 1) && 0 <= (cc - 1) && (rr + 2) < src.rows && (cc + 2) < src.cols);
+
+				//4x4数量的点(rr, cc) -> (y, x)
+				std::vector<std::vector<int> > src_arr = {
+					{ src.at<uchar>(rr - 1, cc - 1), src.at<uchar>(rr, cc - 1), src.at<uchar>(rr + 1, cc - 1), src.at<uchar>(rr + 2, cc - 1)},
+					{ src.at<uchar>(rr - 1, cc), src.at<uchar>(rr, cc), src.at<uchar>(rr + 1, cc), src.at<uchar>(rr + 2, cc)},
+					{ src.at<uchar>(rr - 1, cc + 1), src.at<uchar>(rr, cc + 1), src.at<uchar>(rr + 1, cc + 1), src.at<uchar>(rr + 2, cc + 1)},
+					{ src.at<uchar>(rr - 1, cc + 2), src.at<uchar>(rr, cc + 2), src.at<uchar>(rr + 1, cc + 2), src.at<uchar>(rr + 2, cc + 2)}
+				};
+				for (int p = 0; p < 3; ++p)
+					for (int q = 0; q < 3; ++q)
+					{
+						//val(p, q) = w(p,q) * src(p, q)
+						val += wr[p] * wc[q] * static_cast<double>(src_arr[p][q]);
+					}
+				assert(i < dst.rows && j < dst.cols);
+				dst.at<uchar>(i, j) = static_cast<int>(val);
+
+			}
+		break;
+	case 3://彩色(原理一样多了两个通道而已)
+		break;
+	default:
+		break;
+	}
+}
+
+std::vector<double> mycv::getW(double coor, double a)
+{
+	std::vector<double> w(4);
+	int base = static_cast<int>(coor);//取整作为基准
+	double e = coor - static_cast<double>(base);//多出基准的小数部分
+	std::vector<double> tmp(4);//存放公式中 |x| <= 1,  1 < |x| < 2四个值
+	// 4 x 4的16个点，所以tmp[0]和tmp[4]距离较远，值在[1, 2]区间
+	tmp[0] = 1.0 + e;// 1 < x < 2
+	tmp[1] = e;//x <= 1
+	tmp[2] = 1.0 - e;// x <= 1
+	tmp[3] = 2.0 - e;// 1 < x < 2
+
+	//按照bicubic公式计算系数w
+	// x <= 1
+	w[1] = (a + 2.0) * std::abs(std::pow(tmp[1], 3)) - (a + 3.0) * std::abs(std::pow(tmp[1], 2)) + 1;
+	w[2] = (a + 2.0) * std::abs(std::pow(tmp[2], 3)) - (a + 3.0) * std::abs(std::pow(tmp[2], 2)) + 1;
+	// 1 < x < 2
+	w[0] = a * std::abs(std::pow(tmp[0], 3)) - 5.0 * a * std::abs(std::pow(tmp[0], 2)) + 8.0*a*std::abs(tmp[0]) - 4.0*a;
+	w[3] = a * std::abs(std::pow(tmp[3], 3)) - 5.0 * a * std::abs(std::pow(tmp[3], 2)) + 8.0*a*std::abs(tmp[3]) - 4.0*a;
+
+	return w;
+}
