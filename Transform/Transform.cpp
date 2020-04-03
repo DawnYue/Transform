@@ -56,7 +56,6 @@ int main()
 	// 旋转已缩放后的图像
 	warpAffine(dstImage_warp, dstImage_warp_rotate, rotMat, dstImage_warp.size());
 
-
 	//【7】显示结果
 	imshow(WINDOW_NAME1, srcImage);
 	imshow(WINDOW_NAME2, dstImage_warp);
