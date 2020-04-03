@@ -1,65 +1,51 @@
-﻿#include <opencv2/opencv.hpp>  
-#include <iostream>
+﻿#include<opencv2/opencv.hpp>
+#include<iostream>
 using namespace cv;
 using namespace std;
 
-#define WINDOW_NAME1 "【原始图窗口】"					//为窗口标题定义的宏 
-#define WINDOW_NAME2 "【经过Warp后的图像】"        //为窗口标题定义的宏 
-#define WINDOW_NAME3 "【经过Warp和Rotate后的图像】"        //为窗口标题定义的宏 
-//Transform
-int main()
+//练习1
+int main(int argc, char*argv)
 {
+	//实例化一个videocapture类，名称为cap
+	VideoCapture cap;
+	//cap(0)表示打开本机的第一个摄像头
+	cap.open(0);
+	//isOpened()检查视频是否开启，正常开启返回1	
+	if (!cap.isOpened())
+	{
+		std::cout << "不能打开视频文件" << std::endl;
+		return -1;
+	}
+	//获得视频的fps
+	double fps = cap.get(CAP_PROP_FPS);
+	std::cout << "fps" << fps << std::endl;
 
+	while (1)
+	{
+		cv::Mat frame;
+		cv::Mat dx, dy,canny2, canny1;
+		bool rSucess = cap.read(frame);
 
-	//【1】参数准备
-	//定义两组点，代表两个三角形
-	Point2f srcTriangle[3];
-	Point2f dstTriangle[3];
-	//定义一些Mat变量
-	Mat rotMat(2, 3, CV_32FC1);
-	Mat warpMat(2, 3, CV_32FC1);
-	Mat srcImage, dstImage_warp, dstImage_warp_rotate;
+		if (!rSucess)
+		{
+			std::cout << "不能从视频中读取帧" << std::endl;
+			break;
+		}
+		else
+		{
+			cvtColor(frame, frame, COLOR_BGR2GRAY);// 将原图像转换为灰度图像
+			threshold(frame, frame, 0, 255, CV_THRESH_OTSU);//二值化
+			convertScaleAbs(frame, frame);
+			Sobel(frame, dx, CV_16SC1, 2, 0, 9);//X方向
+			Sobel(frame, dy, CV_16SC1, 0, 2, 9);//Y方向
+			Canny(frame, canny2, 20, 60);
+			Canny(dx, dy, canny1, 20, 60);
 
-	//【2】加载源图像并作一些初始化
-	srcImage = imread("E:\\1.png");
-	if (!srcImage.data) { printf("读取图片错误，请确定目录下是否有imread函数指定的图片存在~！ \n"); return false; }
-	// 设置目标图像的大小和类型与源图像一致
-	dstImage_warp = Mat::zeros(srcImage.rows, srcImage.cols, srcImage.type());
+			imshow("canny2边缘检测", canny2);
+			imshow("canny1边缘检测", canny1);
+		}
+		waitKey(30); //延时30ms
 
-	//【3】设置源图像和目标图像上的三组点以计算仿射变换
-	srcTriangle[0] = Point2f(0, 0);
-	srcTriangle[1] = Point2f(static_cast<float>(srcImage.cols - 1), 0);
-	srcTriangle[2] = Point2f(0, static_cast<float>(srcImage.rows - 1));
-
-	dstTriangle[0] = Point2f(static_cast<float>(srcImage.cols*0.0), static_cast<float>(srcImage.rows*0.33));
-	dstTriangle[1] = Point2f(static_cast<float>(srcImage.cols*0.65), static_cast<float>(srcImage.rows*0.35));
-	dstTriangle[2] = Point2f(static_cast<float>(srcImage.cols*0.15), static_cast<float>(srcImage.rows*0.6));
-
-	//【4】求得仿射变换
-	warpMat = getAffineTransform(srcTriangle, dstTriangle);
-
-	//【5】对源图像应用刚刚求得的仿射变换
-	warpAffine(srcImage, dstImage_warp, warpMat, dstImage_warp.size());
-
-	//【6】对图像进行缩放后再旋转
-	// 计算绕图像中点顺时针旋转50度缩放因子为0.6的旋转矩阵
-	Point center = Point(dstImage_warp.cols / 2, dstImage_warp.rows / 2);
-	double angle = -50.0;
-	double scale = 0.6;
-	// 通过上面的旋转细节信息求得旋转矩阵
-	rotMat = getRotationMatrix2D(center, angle, scale);
-	// 旋转已缩放后的图像
-	warpAffine(dstImage_warp, dstImage_warp_rotate, rotMat, dstImage_warp.size());
-
-
-	//【7】显示结果
-	imshow(WINDOW_NAME1, srcImage);
-	imshow(WINDOW_NAME2, dstImage_warp);
-	imshow(WINDOW_NAME3, dstImage_warp_rotate);
-
-	// 等待用户按任意按键退出程序
-	waitKey(0);
-
+	}
 	return 0;
 }
-
