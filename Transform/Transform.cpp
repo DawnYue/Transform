@@ -12,7 +12,7 @@ int main()
 {
 	Mat srcImage, dstImage;
 	srcImage = imread("E:\\lena.jpg");
-	if (!srcImage.data) { printf("读取图片错误 \n"); return -1; }	
+	if (!srcImage.data) { return -1; }	
 	float angle = -10.0, scale = 1;	
 	cv::Point2f center(srcImage.cols / 2, srcImage.rows / 2);
 	// 变换矩阵
