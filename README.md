@@ -1,5 +1,5 @@
 opencv简单实践6：canny算子、 旋转及缩放、仿射和投影变换
-
+https://www.bilibili.com/video/BV1KA411h7BV/
 
 练习1 canny算子
 读取摄像头图像，并对摄像头图像进行中值滤波
